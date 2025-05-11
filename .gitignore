@@ -1,0 +1,32 @@
+# Arquivos e diretórios específicos do Godot para ignorar
+.godot/
+*.translation
+export_presets.cfg
+.import/
+export/
+logs/
+mono_crash*
+
+# Arquivos de sistema para ignorar
+.DS_Store
+Thumbs.db
+.directory
+
+# Arquivos temporários
+.temp
+*.tmp
+*.swp
+*~
+
+# Builds e binários
+*.o
+*.os
+*.obj
+*.bc
+*.exe
+*.dblite
+*.pdb
+*.exp
+
+# Arquivos pessoais que podem variar entre colaboradores
+override.cfg
