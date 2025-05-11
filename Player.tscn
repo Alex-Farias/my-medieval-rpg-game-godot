@@ -1,5 +1,6 @@
-[gd_scene load_steps=81 format=3 uid="uid://dkhdy700okcqn"]
+[gd_scene load_steps=82 format=3 uid="uid://dkhdy700okcqn"]
 
+[ext_resource type="Script" uid="uid://nnrnl17xhdaj" path="res://scripts/Player.gd" id="1_3tkgg"]
 [ext_resource type="Texture2D" uid="uid://cov3e2mnlylv2" path="res://assets/sprites/player/Knight 2D Pixel Art/Sprites/without_outline/ATTACK 1.png" id="1_hp6x6"]
 [ext_resource type="Texture2D" uid="uid://d1lrb3n3qcj7g" path="res://assets/sprites/player/Knight 2D Pixel Art/Sprites/without_outline/IDLE.png" id="1_xhfnw"]
 [ext_resource type="Texture2D" uid="uid://b0jyuxkby33jx" path="res://assets/sprites/player/Knight 2D Pixel Art/Sprites/without_outline/ATTACK 2.png" id="2_3tkgg"]
@@ -547,7 +548,7 @@ size = Vector2(48, 63)
 [node name="Node2D" type="Node2D"]
 
 [node name="Player" type="CharacterBody2D" parent="."]
-position = Vector2(24, 48)
+script = ExtResource("1_3tkgg")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Player"]
 position = Vector2(1, -19)
