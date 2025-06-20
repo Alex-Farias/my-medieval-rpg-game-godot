@@ -6,19 +6,24 @@ var smoothing = 0.1  # Valor de suavização (menor = mais suave)
 
 func _ready():
 	# Procura o jogador na cena
-	target = get_node("/root/World/Player")
+	# Ajuste o caminho conforme a estrutura real da sua cena
+	target = get_node("../Player") # Considerando que a câmera é filha do Player
 	
 	if target:
-		# Configurando limites da câmera baseado no tamanho do TileMap
-		var tilemap = get_node("/root/World/TileMap")
-		if tilemap:
+		# Usando o caminho correto para o TileMap
+		var tilemap = get_node("../../TileMap") # Ajuste este caminho se necessário
+		if tilemap and tilemap.tile_set:
 			var map_limits = tilemap.get_used_rect()
-			var tile_size = tilemap.cell_size
+			var tile_size = tilemap.tile_set.tile_size # Correto para Godot 4.x
 			
 			limit_left = map_limits.position.x * tile_size.x
 			limit_right = map_limits.end.x * tile_size.x
 			limit_top = map_limits.position.y * tile_size.y
 			limit_bottom = map_limits.end.y * tile_size.y
+		else:
+			print("TileMap ou tile_set não encontrado")
+	else:
+		print("Player não encontrado")
 
 func _process(delta):
 	if target:

@@ -4,6 +4,8 @@ extends Node2D
 func _ready():
 	# Configurações iniciais do mundo
 	print("Mundo carregado!")
+	print("Player carregado na posição: ", global_position)
+	
 	
 	# Configurar a física global do projeto (se necessário)
 	# ProjectSettings.set_setting("physics/2d/default_gravity", 980)

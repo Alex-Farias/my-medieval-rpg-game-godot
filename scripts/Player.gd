@@ -9,16 +9,58 @@ const ACCELERATION = 20
 const FRICTION = 10
 
 # Estado do jogador
-enum State {IDLE, WALK, RUN, JUMP, FALL, ATTACK}
+enum State {IDLE, WALK, RUN, JUMP, FALL, ATTACK1, ATTACK2, ATTACK3, DEFEND, HURT, DEATH}
 var current_state = State.IDLE
 var is_attacking = false
+var is_defending = false
+var is_hurt = false
+var is_dead = false
+var attack_combo = 0
+var combo_timer = 0
 var direction = Vector2.ZERO
 var was_on_floor = false
+var health = 100
+var max_health = 100
+
+func _ready():
+	# Adicionar Timer para o ataque
+	var timer = Timer.new()
+	timer.name = "AttackTimer"
+	timer.wait_time = 0.6  # Duração da animação de ataque
+	timer.one_shot = true
+	add_child(timer)
+	timer.connect("timeout", Callable(self, "_on_attack_timer_timeout"))
+	
+	# Adicionar Timer para o combo de ataques
+	var combo_timer_node = Timer.new()
+	combo_timer_node.name = "ComboTimer"
+	combo_timer_node.wait_time = 1.5  # Tempo para realizar o próximo ataque do combo
+	combo_timer_node.one_shot = true
+	add_child(combo_timer_node)
+	combo_timer_node.connect("timeout", Callable(self, "_on_combo_timer_timeout"))
+	
+	# Adicionar Timer para o estado de dano
+	var hurt_timer = Timer.new()
+	hurt_timer.name = "HurtTimer"
+	hurt_timer.wait_time = 0.5  # Tempo do estado de dano
+	hurt_timer.one_shot = true
+	add_child(hurt_timer)
+	hurt_timer.connect("timeout", Callable(self, "_on_hurt_timer_timeout"))
+	
+	# Adicionar o jogador ao grupo "player"
+	add_to_group("player")
+	
+	# Começar com a animação idle
+	$AnimatedSprite2D.play("idle")
 
 func _physics_process(delta):
+	# Se morto, apenas animar a morte
+	if is_dead:
+		return
+		
 	# Adicionar a gravidade
 	if not is_on_floor():
-		velocity.y += self.GRAVITY * delta
+		velocity.y += GRAVITY * delta
 		
 	# Detectar se começou a cair
 	if was_on_floor and not is_on_floor() and velocity.y >= 0:
@@ -27,7 +69,7 @@ func _physics_process(delta):
 	was_on_floor = is_on_floor()
 	
 	# Lidar com o pulo
-	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
+	if Input.is_action_just_pressed("ui_accept") and is_on_floor() and !is_attacking and !is_defending and !is_hurt:
 		velocity.y = JUMP_VELOCITY
 		current_state = State.JUMP
 	
@@ -35,30 +77,59 @@ func _physics_process(delta):
 	direction = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 	
 	# Verificar se está correndo (shift)
-	var is_running = Input.is_action_pressed("ui_shift") 
+	var is_running = Input.is_action_pressed("ui_shift") and !is_attacking and !is_defending and !is_hurt
 	var target_speed = RUN_SPEED if is_running else SPEED
 	
+	# Lidar com defesa
+	if Input.is_action_pressed("ui_down") and is_on_floor() and !is_attacking and !is_hurt:
+		is_defending = true
+		current_state = State.DEFEND
+		velocity.x = 0 # Não pode se mover enquanto defende
+	else:
+		is_defending = false
+	
 	# Lidar com ataque (botão direito do mouse)
-	if Input.is_action_just_pressed("ui_attack") and not is_attacking:
+	if Input.is_action_just_pressed("ui_attack") and !is_defending and !is_hurt:
 		is_attacking = true
-		current_state = State.ATTACK
+		
+		# Sistema de combo de ataques
+		if $ComboTimer.is_stopped():
+			attack_combo = 0
+		
+		attack_combo = (attack_combo + 1) % 4
+		if attack_combo == 0:
+			attack_combo = 1
+		
+		match attack_combo:
+			1:
+				current_state = State.ATTACK1
+			2:
+				current_state = State.ATTACK2
+			3:
+				current_state = State.ATTACK3
+		
 		$AttackTimer.start()  # Timer para duração do ataque
+		$ComboTimer.start()   # Timer para o próximo ataque do combo
 	
 	# Atualizar a velocidade horizontal com aceleração/desaceleração
-	if direction.x != 0:
-		velocity.x = move_toward(velocity.x, direction.x * target_speed, ACCELERATION)
+	if !is_attacking and !is_defending and !is_hurt:
+		if direction.x != 0:
+			velocity.x = move_toward(velocity.x, direction.x * target_speed, ACCELERATION)
+		else:
+			velocity.x = move_toward(velocity.x, 0, FRICTION)
 	else:
-		velocity.x = move_toward(velocity.x, 0, FRICTION)
+		# Desacelera mais rápido durante ataque ou defesa
+		velocity.x = move_toward(velocity.x, 0, FRICTION * 2)
 	
-	# Atualizar o estado se não estiver atacando
-	if not is_attacking:
+	# Atualizar o estado se não estiver em estados especiais
+	if !is_attacking and !is_defending and !is_hurt:
 		update_state(is_running)
 	
 	# Atualizar a animação
 	update_animation()
 	
 	# Atualizar a direção do sprite
-	if direction.x != 0:
+	if direction.x != 0 and !is_attacking and !is_defending and !is_hurt:
 		$AnimatedSprite2D.flip_h = (direction.x < 0)
 	
 	move_and_slide()
@@ -88,14 +159,37 @@ func update_animation():
 		State.JUMP:
 			$AnimatedSprite2D.play("jump")
 		State.FALL:
-			$AnimatedSprite2D.play("fall")
-		State.ATTACK:
-			$AnimatedSprite2D.play("attack")
+			# Se não tiver animação de queda específica, pode usar jump
+			if $AnimatedSprite2D.sprite_frames.has_animation("fall"):
+				$AnimatedSprite2D.play("fall")
+			else:
+				$AnimatedSprite2D.play("jump")
+		State.ATTACK1:
+			$AnimatedSprite2D.play("attack1")
+		State.ATTACK2:
+			$AnimatedSprite2D.play("attack2")
+		State.ATTACK3:
+			$AnimatedSprite2D.play("attack3")
+		State.DEFEND:
+			$AnimatedSprite2D.play("defend")
+		State.HURT:
+			$AnimatedSprite2D.play("hurt")
+		State.DEATH:
+			$AnimatedSprite2D.play("death")
+			is_dead = true
 
 # Chamado quando o timer de ataque termina
 func _on_attack_timer_timeout():
 	is_attacking = false
-	
+
+# Chamado quando o timer de combo termina
+func _on_combo_timer_timeout():
+	attack_combo = 0
+
+# Chamado quando o timer de dano termina
+func _on_hurt_timer_timeout():
+	is_hurt = false
+
 # Função para interagir com objetos
 func interact():
 	# Cria uma área para detectar objetos interativos à frente do jogador
@@ -114,31 +208,20 @@ func interact():
 
 # Função para receber dano
 func take_damage(amount):
-	# Implementar lógica de dano
-	print("Jogador recebeu " + str(amount) + " de dano")
+	if is_defending:
+		# Reduz o dano quando está defendendo
+		amount = amount / 2
 	
-# Adicionar outros itens necessários para o jogador
-func _ready():
-	# Adicionar Timer para o ataque
-	var timer = Timer.new()
-	timer.name = "AttackTimer"
-	timer.wait_time = 0.4  # Duração da animação de ataque
-	timer.one_shot = true
-	add_child(timer)
-	timer.connect("timeout", Callable(self, "_on_attack_timer_timeout"))
+	health -= amount
+	health = max(0, health)
 	
-	# Adicionar o jogador ao grupo "player"
-	add_to_group("player")
+	print("Jogador recebeu " + str(amount) + " de dano. HP: " + str(health))
 	
-	# Configurar os controles personalizados se não existirem
-	if not InputMap.has_action("ui_shift"):
-		var shift_event = InputEventKey.new()
-		shift_event.keycode = KEY_SHIFT
-		InputMap.add_action("ui_shift")
-		InputMap.action_add_event("ui_shift", shift_event)
-	
-	if not InputMap.has_action("ui_attack"):
-		var attack_event = InputEventMouseButton.new()
-		attack_event.button_index = MOUSE_BUTTON_RIGHT
-		InputMap.add_action("ui_attack")
-		InputMap.action_add_event("ui_attack", attack_event)
+	if health <= 0:
+		# Morrer
+		current_state = State.DEATH
+	else:
+		# Entrar no estado de dano
+		current_state = State.HURT
+		is_hurt = true
+		$HurtTimer.start()
