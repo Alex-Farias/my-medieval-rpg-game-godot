@@ -1,8 +1,8 @@
 extends CharacterBody2D
 
 # Constantes de física
-const SPEED = 300.0
-const RUN_SPEED = 450.0
+const SPEED = 150.0
+const RUN_SPEED = 350.0
 const JUMP_VELOCITY = -400.0
 const GRAVITY = 980
 const ACCELERATION = 20
@@ -15,6 +15,7 @@ var is_attacking = false
 var is_defending = false
 var is_hurt = false
 var is_dead = false
+var attack_damage = 400
 var attack_combo = 0
 var combo_timer = 0
 var direction = Vector2.ZERO
@@ -47,11 +48,13 @@ func _ready():
 	add_child(hurt_timer)
 	hurt_timer.connect("timeout", Callable(self, "_on_hurt_timer_timeout"))
 	
+	$AttackArea.connect("body_entered", Callable(self, "_on_attack_area_body_entered"))
+	
 	# Adicionar o jogador ao grupo "player"
 	add_to_group("player")
 	
 	# Começar com a animação idle
-	$AnimatedSprite2D.play("idle")
+	$anim.play("idle")
 
 func _physics_process(delta):
 	# Se morto, apenas animar a morte
@@ -91,6 +94,7 @@ func _physics_process(delta):
 	# Lidar com ataque (botão direito do mouse)
 	if Input.is_action_just_pressed("ui_attack") and !is_defending and !is_hurt:
 		is_attacking = true
+		$AttackArea.monitoring = true  # Ativa quando inicia o ataque
 		
 		# Sistema de combo de ataques
 		if $ComboTimer.is_stopped():
@@ -110,6 +114,13 @@ func _physics_process(delta):
 		
 		$AttackTimer.start()  # Timer para duração do ataque
 		$ComboTimer.start()   # Timer para o próximo ataque do combo
+		
+	# Atualizar a direção do AttackArea com base no flip
+	if $anim.flip_h:
+		$AttackArea.position.x = -30
+	else:
+		$AttackArea.position.x = 30
+
 	
 	# Atualizar a velocidade horizontal com aceleração/desaceleração
 	if !is_attacking and !is_defending and !is_hurt:
@@ -130,7 +141,7 @@ func _physics_process(delta):
 	
 	# Atualizar a direção do sprite
 	if direction.x != 0 and !is_attacking and !is_defending and !is_hurt:
-		$AnimatedSprite2D.flip_h = (direction.x < 0)
+		$anim.flip_h = (direction.x < 0)
 	
 	move_and_slide()
 
@@ -151,35 +162,36 @@ func update_state(is_running):
 func update_animation():
 	match current_state:
 		State.IDLE:
-			$AnimatedSprite2D.play("idle")
+			$anim.play("idle")
 		State.WALK:
-			$AnimatedSprite2D.play("walk")
+			$anim.play("walk")
 		State.RUN:
-			$AnimatedSprite2D.play("run")
+			$anim.play("run")
 		State.JUMP:
-			$AnimatedSprite2D.play("jump")
+			$anim.play("jump")
 		State.FALL:
-			# Se não tiver animação de queda específica, pode usar jump
-			if $AnimatedSprite2D.sprite_frames.has_animation("fall"):
-				$AnimatedSprite2D.play("fall")
+			 #Se não tiver animação de queda específica, pode usar jump
+			if $anim.sprite_frames.has_animation("fall"):
+				$anim.play("fall")
 			else:
-				$AnimatedSprite2D.play("jump")
+				$anim.play("jump")
 		State.ATTACK1:
-			$AnimatedSprite2D.play("attack1")
+			$anim.play("attack1")
 		State.ATTACK2:
-			$AnimatedSprite2D.play("attack2")
+			$anim.play("attack2")
 		State.ATTACK3:
-			$AnimatedSprite2D.play("attack3")
+			$anim.play("attack3")
 		State.DEFEND:
-			$AnimatedSprite2D.play("defend")
+			$anim.play("defend")
 		State.HURT:
-			$AnimatedSprite2D.play("hurt")
+			$anim.play("hurt")
 		State.DEATH:
-			$AnimatedSprite2D.play("death")
+			$anim.play("death")
 			is_dead = true
 
 # Chamado quando o timer de ataque termina
 func _on_attack_timer_timeout():
+	$AttackArea.monitoring = false  # Desativa após o ataque
 	is_attacking = false
 
 # Chamado quando o timer de combo termina
@@ -190,10 +202,14 @@ func _on_combo_timer_timeout():
 func _on_hurt_timer_timeout():
 	is_hurt = false
 
+func _on_attack_area_body_entered(body):
+	if is_attacking and body.is_in_group("enemies"):
+		body.take_damage(attack_damage * attack_combo)
+
 # Função para interagir com objetos
 func interact():
 	# Cria uma área para detectar objetos interativos à frente do jogador
-	var interact_position = position + Vector2(30 * sign(1 if not $AnimatedSprite2D.flip_h else -1), 0)
+	var interact_position = position + Vector2(30 * sign(1 if not $anim.flip_h else -1), 0)
 	var space_state = get_world_2d().direct_space_state
 	var query = PhysicsPointQueryParameters2D.new()
 	query.position = interact_position
@@ -220,6 +236,7 @@ func take_damage(amount):
 	if health <= 0:
 		# Morrer
 		current_state = State.DEATH
+		update_animation()
 	else:
 		# Entrar no estado de dano
 		current_state = State.HURT
